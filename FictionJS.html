@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" 
+      content="width=device-width,
+      initial-scale=1.0">
+    <title>FictionJS</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas class="CanvasPlane" >
+      <p>Add suitable fallback here.</p>
+    </canvas>
+    
+    <canvas class="CanvasAxis">
+      <p>Add suitable fallback here.</p>
+    </canvas>
+    
+    <style>
+      /* Set Z (canvas layer order) */
+      canvas {position: absolute;}
+      #CanvasAxis {z-index: 2;} /*near*/
+      #CanvasPlane {z-index: 1;} /*far*/
+    </style>
+    
+    <script type="module">
+    // Module type can import...
+      
+      import {fiction}
+        from './FictionMain.js';
+      
+      fiction(); // Start!
+      
+    </script>
+  </body>
+</html>
