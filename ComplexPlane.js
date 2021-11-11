@@ -1,5 +1,5 @@
 // Functions etc to draw part of the 
-// Complex Plane into the JS Canvas.
+// Complex Plane into the HTML Canvas.
 'use strict';
 import {cn}
   from './ComplexNumbers.js';
@@ -7,13 +7,14 @@ import {GetMandelbrot}
 from './Fractals/Mandelbrot.js';
 
 let TopLeft; // Where in CP is Canvas 0,0
-let Lsq; // Largest centered square
+let Lsq; // Largest (centered) square
 let Zero; // Where is 0 relative TopLeft
 let Dpp; // Distance per-pixel
 let BackColour = [0, 0, 0, 255];
 let ForeColour = [255, 255, 255, 255];
 let AxisColour = [150, 150, 255, 200];
-let Display = 'Mandelbrot';
+let Display = 'Mandelbrot'; // to do...
+let Requests = []; // To queue requests
 
 const canvas =
   document.querySelector('.CanvasPlane');
@@ -23,7 +24,8 @@ const axis  =
 const ctxc = canvas.getContext('2d');
 const ctxa = axis.getContext('2d');
 
-//CanvasResToMax();
+//CanvasResToMax(); // Can call here
+// doesn't work in IFrame...
 
 const height = axis.height =
   canvas.height = window.innerHeight;
@@ -37,6 +39,16 @@ function xycn(x, y) {
     (TopLeft.r + (x * Dpp)),
     (TopLeft.i - (y * Dpp)));
   return c;
+}
+
+function cnxy(c) {
+  let pos = {
+    x: Math.round(
+      ((c.r - TopLeft.r) / Dpp)),
+    y: Math.round(
+      ((TopLeft.i - c.i) / Dpp)),
+  };
+  return pos;
 }
 
 function SetWholeCanvas(ctx, rgba) {
@@ -62,9 +74,9 @@ function BlankPlane() {
   RepaintAxis(AxisColour);
   ForceCanvasRefresh(ctxc);
   SetupLsq();
-  let upperleft = new cn(-2, 2);
-  let lowerright = new cn(2, -2);
-  SetLsqArea(upperleft, lowerright);
+  let upperLeft = new cn(-2, 2);
+  let lowerRight = new cn(2, -2);
+  SetLsqArea(upperLeft, lowerRight);
 }
 
 function SetZero(pos) {
@@ -114,6 +126,13 @@ function SetupLsq() {
   };
 }
 
+function MoveLsq(relpos) {
+  Lsq.upperLeft.r -= (Dpp * relpos.x);
+  Lsq.upperLeft.i += (Dpp * relpos.y);
+  Lsq.lowerRight.r -= (Dpp * relpos.x);
+  Lsq.lowerRight.i += (Dpp * relpos.y);
+}
+
 function SetTopLeft() {
   TopLeft = new cn(
     (Lsq.upperLeft.r - 
@@ -122,48 +141,59 @@ function SetTopLeft() {
       (Lsq.offsetY * Dpp)));
 }
 
-function MoveZero(relpos) {
-  let pos = 
-    {x: (Zero.x + relpos.x),
-     y: (Zero.y + relpos.y)}
-  
-  Reposition(relpos);
+function Move(relpos) {
+  MoveZero(relpos);
+  MoveLsq(relpos);
+  SetTopLeft();
+  Reposition(relpos); // Needs to go last
+};
+
+function MoveZero(rel) {
+  let pos = {
+    x: (Zero.x + rel.x),
+    y: (Zero.y + rel.y),
+  };
   SetZero(pos);
 }
 
-function Reposition(relpos) {
-  
-  let r = {
-    x:(Math.round(relpos.x)),
-    y:(Math.round(relpos.y))
-  };
-  let m = {
+function Reposition(r) {
+  let absx = Math.abs(r.x);
+  let absy = Math.abs(r.y);
+  let m = { // to pickup & move
     x: ((r.x < 0) ? (0 - r.x) : 0),
     y: ((r.y < 0) ? (0 - r.y) : 0),
     nx: ((r.x > 0) ? r.x : 0),
-    ny: ((r.y > 0) ? r.y : 0)
+    ny: ((r.y > 0) ? r.y : 0),
+    w: (width - absx),
+    h: (height - absy),
   };
-  if (m.x > 0) {
-    m.w = (width - m.x);
-  } else {
-    m.w = (width + r.x);
+  let n = { // need to request
+    // column
+    x: ((m.nx > 0) ? 0 : (m.w)),
+    // row
+    y: ((m.ny > 0) ? 0 : (m.h)),
   };
-  if (m.y > 0) {
-    m.h = (height - m.y);
-  } else {
-    m.h = (height + r.y);
+  // Request new column if required
+  if (absx > 0) {
+    let cc = xycn(n.x, 0);
+    Mandelbrot(cc, absx, height);
   };
+  // Request new row if required
+  if (absy > 0) {
+    let rc = xycn(0, n.y);
+    Mandelbrot(rc, width, absy);
+  };
+  // Move existing data
   const imageData = ctxc.getImageData(
     m.x, m.y, m.w, m.h);
   const data = imageData.data;
-            
   ctxc.putImageData(
     imageData, m.nx, m.ny);
-  /* so far this moves the correct rect,
-  need to make request new rects...*/
 }
 
 function Plot(pos, rgba) {
+  // Just paint 1 pixel on the canvas
+  // Pos is {x, y} 
   if (rgba == undefined) {
     rgba = ForeColour;
   };
@@ -367,35 +397,84 @@ function ForceCanvasRefresh(ctx) {
   ctx.putImageData(imageDataCopy, 0, 0);
 }
 
-async function Mandelbrot() {
-  let refreshrows = 20;
-  let c = new cn(
-    TopLeft.r,
-    TopLeft.i);
-  let gheight = 0;
-  for (let i = 0;
-    i < height; i += refreshrows) {
-    if ((i + refreshrows) < height) {
-      gheight = refreshrows;
-    } else {
-      gheight = (height - i);
+async function Mandelbrot(
+    c, gwidth, gheight) {
+  // Default to whole canvas:
+  if (c == undefined) {
+    c = new cn(
+      TopLeft.r,
+      TopLeft.i);
+  };
+  if (gwidth == undefined) {
+    gwidth = width;
+  };
+  if (gheight == undefined) {
+    gheight = height;
+  };
+  let refreshrows =
+    Math.ceil((gwidth)/32);
+  // Split request into smaller parts
+  let split = Math.ceil(
+    gheight / refreshrows);
+  let Parts = [split];
+  for (let i = 0; i < split; i++) {
+    Parts[i] = {
+      c: new cn(c.r,
+        (c.i - (i * (refreshrows * Dpp)))
+      ),
+      w: gwidth
     };
-    let data = await GetMandelbrot(
-      c, 
+    if ((i * refreshrows) <= gheight) {
+      Parts[i].h = refreshrows;
+    } else {
+      Parts[i].h = (
+        (i * refreshrows) - gheight);
+    };
+  };
+  // enqueue part requests
+  for (let i = 0; i < split; i++) {
+    Requests.push(Parts.shift());
+  };
+  if (Requests.length == split) {
+    NextRequest();
+  };
+  async function NextRequest() {
+    let i = 0;
+    //console.log(Requests.length);
+    Requests[i].mandelbrot = 
+        await GetMandelbrot(
+      Requests[i].c, 
       Dpp, 
-      width, 
-      gheight);
-    DataToCanvas(
-      data, width, gheight, 0, i);
-    c.i -= (Dpp * refreshrows);
+      Requests[i].w, 
+      Requests[i].h,
+    );
+    DataToCanvasC(
+      Requests[i].mandelbrot.data,
+      Requests[i].w,
+      Requests[i].h,
+      Requests[i].c,
+    );
+    Requests.shift();
+    if (Requests.length > 0) {
+      NextRequest();
+    };
   };
 }
 
-function DataToCanvas(
+function DataToCanvasXY(
   data, dwidth, dheight, x, y) {
   let imageData = new
     ImageData(data, dwidth, dheight);
   ctxc.putImageData(imageData, x, y);
+}
+
+function DataToCanvasC(
+  data, dwidth, dheight, c) {
+  let pos = cnxy(c);
+  let imageData = new
+  ImageData(data, dwidth, dheight);
+  ctxc.putImageData(
+    imageData, pos.x, pos.y);
 }
 
 export {
@@ -403,7 +482,7 @@ export {
   CanvasResToMax,
   Zero,
   SetZero,
-  MoveZero,
+  Move,
   TopLeft,
   height,
   width,
@@ -411,6 +490,5 @@ export {
   xycn,
   Plot,
   StartRefreshing,
-  Mandelbrot,
-  DataToCanvas
+  Mandelbrot
 };

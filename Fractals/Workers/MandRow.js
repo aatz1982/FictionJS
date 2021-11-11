@@ -4,7 +4,7 @@ let point = {}; // details to send mpws
 let row; // to store the results
 let rwidth; // row width/points
 let Dpp; // distance per pixel (real)
-let rstart; 
+let rstart;
 let escname = 
   location.search.substring(1);
 let cpus =

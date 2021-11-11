@@ -1,5 +1,5 @@
 // Handles input events
-import {MoveZero}
+import {Move}
   from './ComplexPlane.js';
 
 const canvas =
@@ -70,11 +70,13 @@ function movetouch(event) {
     if (idx >= 0) {
       if (Touch1 == idx) {
         let pos = {
-          x: (touches[i].pageX -
-          ongoingTouches[idx].pageX),
-          y: (touches[i].pageY -
-          ongoingTouches[idx].pageY)};
-        MoveZero(pos);
+          x: Math.round(
+            (touches[i].pageX -
+          ongoingTouches[idx].pageX)),
+          y: Math.round(
+            (touches[i].pageY -
+          ongoingTouches[idx].pageY))};
+        Move(pos);
       };
       ongoingTouches.splice(idx, 1,
         copyTouch(touches[i]));
@@ -96,13 +98,15 @@ function endtouch(event) {
     if (idx >= 0) {
       if (Touch1 == idx) {
         let pos = {
-          x: (touches[i].pageX -
+          x: Math.round(
+            (touches[i].pageX -
             ongoingTouches[idx].
-            pageX),
-          y: (touches[i].pageY -
+            pageX)),
+          y: Math.round(
+            (touches[i].pageY -
             ongoingTouches[idx].
-            pageY)};
-        MoveZero(pos);
+            pageY))};
+        Move(pos);
         Touch1 = -1;
       };
       ongoingTouches.splice(idx, 1);

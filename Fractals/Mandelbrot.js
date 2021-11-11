@@ -13,26 +13,60 @@ let rw = new Worker(
     escname), {type: 'module'});
 
 let Iterations = 60;
+let esclim = 2;
 let ColourArray = [];
+let RequestQueue = [];
 
+FillColourArray();
 async function GetMandelbrot(
   c, Dpp, gwidth, gheight) {
-  
-  if (ColourArray.length < Iterations) {
-    FillColourArray();
+  let request = {
+    mresultresolve: {},
+    mresultreject: {},
+    c: new cn(c.r, c.i), 
+    Dpp: Dpp,
+    gwidth: gwidth,
+    gheight: gheight,
   };
-  
-  let esclim = 2;
-  
-  async function GetMandRows(
-    rwidth, rheight) {
-    return new Promise(
+  request.mandelbrot = new Promise(
+    (resolve, reject) => {
+      request.mresultresolve = resolve;
+      request.mresultreject = reject;
+    }),
+  RequestQueue.push(request);
+  if (RequestQueue.length == 1) {
+    NextRequest();
+  };
+  async function NextRequest() {
+    RequestQueue[0].mresultresolve(
+      await GetMandRows(
+        RequestQueue[0]
+      )
+    );
+    RequestQueue.shift();
+    if (RequestQueue.length > 0) {
+      NextRequest();
+    };
+  };
+  return request.mandelbrot;
+}
+
+
+
+async function GetMandRows(request) {
+  let rwidth = request.gwidth;
+  let rheight = request.gheight;
+  let rc = new cn (
+    request.c.r, request.c.i);
+  let Dpp = request.Dpp
+  return new Promise(
       (resolve, reject) => {
-    let Mandelbrot = new
+    let Mandelbrot = {c: request.c};
+    Mandelbrot.data = new
       Uint8ClampedArray(
       ((rwidth * rheight) * 4));
     let Escapes = [];
-    let rc = new cn(c.r, c.i);
+    //let rc = new cn(c.r, c.i);
     let row = {
       c: rc,
       Dpp: Dpp,
@@ -80,20 +114,16 @@ async function GetMandelbrot(
         let col = ColourArray.slice(
           (Escapes[i] * 4), 
           ((Escapes[i] * 4) + 4));
-        Mandelbrot[pos] = col[0];
-        Mandelbrot[pos + 1] = col[1];
-        Mandelbrot[pos + 2] = col[2];
-        Mandelbrot[pos + 3] = col[3];
+        Mandelbrot.data[pos] = col[0];
+        Mandelbrot.data[pos+1] = col[1];
+        Mandelbrot.data[pos+2] = col[2];
+        Mandelbrot.data[pos+3] = col[3];
       };
     };
     rw.postMessage(row); // start worker
     }
-    ); // end promise...
-  };
-  let result = await GetMandRows(
-      gwidth, gheight);
-  return result;
-}
+  ); // end promise...
+};
 
 function DrawMandelbrot() {
   // Original test, needs revision
@@ -129,7 +159,8 @@ function DrawMandelbrot() {
 }
 
 function FillColourArray() {
-  for (let i = 0; i <= Iterations; i++) {
+  for (let i = 0;
+       i <= Iterations; i++) {
     ColourArray.push(
       ...WhiteBlueBlackFade(i));
   };
@@ -138,9 +169,9 @@ function FillColourArray() {
 function BlackWhite (num) {
   // Return black for even/white for odd
   if ((num % 2) == 0) {
-    return [0, 0, 0, 255]; // black
+    return [0, 0, 0, 255];
   } else { 
-    return [255, 255, 255, 255]; // white
+    return [255, 255, 255, 255];
   };
 }
 
