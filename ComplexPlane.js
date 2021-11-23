@@ -24,7 +24,7 @@ const axis  =
 const ctxc = canvas.getContext('2d');
 const ctxa = axis.getContext('2d');
 
-//CanvasResToMax(); // Can call here
+// CanvasResToMax(); // Can call here
 // doesn't work in IFrame...
 
 const height = axis.height =
@@ -95,6 +95,14 @@ function SetZero(pos) {
   RepaintAxis();
 }
 
+function MoveZero(rel) {
+  let pos = {
+    x: (Zero.x + rel.x),
+    y: (Zero.y + rel.y),
+  };
+  SetZero(pos);
+}
+
 function SetLsqArea(
     upperLeft, lowerRight) {
   Lsq.upperLeft = upperLeft;
@@ -114,7 +122,7 @@ function SetupLsq() {
     Lsq = {width: width};
     Lsq.offsetY = 
       Math.round((height - width) / 2);
-      // Round so is def a pixel
+      // Round so on a pixel
     Lsq.offsetX = 0;
   } else {
     if (width >= height) {
@@ -148,18 +156,28 @@ function Move(relpos) {
   Reposition(relpos); // Needs to go last
 };
 
-function MoveZero(rel) {
-  let pos = {
-    x: (Zero.x + rel.x),
-    y: (Zero.y + rel.y),
-  };
-  SetZero(pos);
+function Zoom(centre, z) {
+  // centre {x, y}; z is Dpp multiplier
+  // ... do a stretch then req whole cp?
+  
+  
 }
 
 function Reposition(r) {
+  // r.x: +Right -Left;  r.y: +Down -Up
   let absx = Math.abs(r.x);
   let absy = Math.abs(r.y);
-  let m = { // to pickup & move
+  //  _____________    _____________
+  // |^x/y  |   |  |  | c .  row    |
+  // |   ___v___|__|  | o ..........|
+  // |  |^nx/ny |  |  | l .         |
+  // |->|       |^ |  | u .         |
+  // |__|_______|h |  | m .         |
+  // |  |     <w   |  | n .         |
+  // |__|__________|  |___._________|
+  //   m obj (move)     n obj (need)
+  //  up/left would be this inverted
+  let m = { // rect to pickup & move:
     x: ((r.x < 0) ? (0 - r.x) : 0),
     y: ((r.y < 0) ? (0 - r.y) : 0),
     nx: ((r.x > 0) ? r.x : 0),
@@ -167,21 +185,23 @@ function Reposition(r) {
     w: (width - absx),
     h: (height - absy),
   };
-  let n = { // need to request
-    // column
-    x: ((m.nx > 0) ? 0 : (m.w)),
+  let n = { // topleft rects need to req
+    // column (cy will be 0 anyway)
+    // may swap to row...
+    cx: ((m.nx > 0) ? 0 : (m.w)),
     // row
-    y: ((m.ny > 0) ? 0 : (m.h)),
+    ry: ((m.ny > 0) ? 0 : (m.h)),
+    rx: ((m.nx > 0) ? m.nx : 0),
   };
   // Request new column if required
   if (absx > 0) {
-    let cc = xycn(n.x, 0);
+    let cc = xycn(n.cx, 0);
     Mandelbrot(cc, absx, height);
   };
   // Request new row if required
   if (absy > 0) {
-    let rc = xycn(0, n.y);
-    Mandelbrot(rc, width, absy);
+    let rc = xycn(n.rx, n.ry);
+    Mandelbrot(rc, (width - absx), absy);
   };
   // Move existing data
   const imageData = ctxc.getImageData(
@@ -398,7 +418,7 @@ function ForceCanvasRefresh(ctx) {
 }
 
 async function Mandelbrot(
-    c, gwidth, gheight) {
+ c, gwidth, gheight) {
   // Default to whole canvas:
   if (c == undefined) {
     c = new cn(
@@ -411,15 +431,17 @@ async function Mandelbrot(
   if (gheight == undefined) {
     gheight = height;
   };
-  let refreshrows =
-    Math.ceil((gwidth)/32);
+  // Max rows
+  let refreshrows = 
+    (Math.ceil((gheight / gwidth)));
   // Split request into smaller parts
   let split = Math.ceil(
     gheight / refreshrows);
   let Parts = [split];
   for (let i = 0; i < split; i++) {
     Parts[i] = {
-      c: new cn(c.r,
+      c: new cn(
+        c.r,
         (c.i - (i * (refreshrows * Dpp)))
       ),
       w: gwidth
@@ -428,7 +450,7 @@ async function Mandelbrot(
       Parts[i].h = refreshrows;
     } else {
       Parts[i].h = (
-        (i * refreshrows) - gheight);
+       (i * refreshrows) - gheight);
     };
   };
   // enqueue part requests
@@ -439,21 +461,24 @@ async function Mandelbrot(
     NextRequest();
   };
   async function NextRequest() {
-    let i = 0;
+    let r = Requests[0];
     //console.log(Requests.length);
-    Requests[i].mandelbrot = 
-        await GetMandelbrot(
-      Requests[i].c, 
+    r.mandelbrot = 
+     await GetMandelbrot(
+      r.c, 
       Dpp, 
-      Requests[i].w, 
-      Requests[i].h,
+      r.w, 
+      r.h,
     );
-    DataToCanvasC(
-      Requests[i].mandelbrot.data,
-      Requests[i].w,
-      Requests[i].h,
-      Requests[i].c,
-    );
+    if (r.mandelbrot.Processed == true) {
+      DataToCanvasC(
+        r.mandelbrot.data,
+        r.mandelbrot.w,
+        r.mandelbrot.h,
+        r.mandelbrot.c,
+      );
+    };
+    // remove completed request
     Requests.shift();
     if (Requests.length > 0) {
       NextRequest();
@@ -479,7 +504,6 @@ function DataToCanvasC(
 
 export {
   BlankPlane,
-  CanvasResToMax,
   Zero,
   SetZero,
   Move,
@@ -488,7 +512,7 @@ export {
   width,
   SetLsqArea,
   xycn,
+  cnxy,
   Plot,
-  StartRefreshing,
-  Mandelbrot
+  Mandelbrot, // to change and not exp
 };
