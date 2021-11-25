@@ -4,7 +4,7 @@ Complex plane & fractals in the HTML Canvas. WIP.
 24/11/2021:
 
 I started to write this in October 2021 to learn
-moderm JavaScript and what it is capable of.
+modern JavaScript and what it's capable of.
 
 Current progress:
 Will currently only draw the Mandelbrot set.
