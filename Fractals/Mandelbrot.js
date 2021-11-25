@@ -20,6 +20,7 @@ let lw = new Worker(
     escname), { type: 'module' });
 
 let log1 = true;
+//if (log1) {
     
 // General settings
 // to do: implement way to set settings
@@ -92,7 +93,7 @@ async function GetMandelbrot(
     function TrimRequest() {
       // get current pos for c?
       let cpos = cnxy(r.c);
-      //if (log1) {
+      
       //  console.log(cpos);
       //};
       // Right
@@ -228,12 +229,6 @@ function processEscapes() {
   };
   Escapes = flatten(
     Escapes, Uint16Array);
-  /*
-  if (log1) {
-    console.log(Escapes);
-    log1 = false;
-  };
-  */
   let rgba;
   let i;
   let pos;
