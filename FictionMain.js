@@ -2,7 +2,6 @@ import {startinputlisteners}
   from './Input.js';
 
 import {BlankPlane,
-        CanvasResToMax,
         Mandelbrot}
   from './ComplexPlane.js';
 

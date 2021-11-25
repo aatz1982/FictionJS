@@ -46,6 +46,7 @@ function startinputlisteners () {
 var ongoingTouches = []; // last pos..
 var touches = []; // new positions
 var Touch1 = -1; // -1 = not assigned yet
+var Touch2 = -1;
 
 function starttouch(event) {
   event.preventDefault(); // unless mouse
@@ -56,6 +57,11 @@ function starttouch(event) {
       copyTouch(touches[i]));
     if (Touch1 == -1) {
       Touch1 = touches[i].identifier;
+    } else {
+      if (Touch2 == -1) {
+        Touch2 = touches[i].identifier;
+        // change Touch1 mode here?
+      };
     };
   };
 }
@@ -69,14 +75,14 @@ function movetouch(event) {
       touches[i].identifier);
     if (idx >= 0) {
       if (Touch1 == idx) {
-        let pos = {
-          x: Math.round(
-            (touches[i].pageX -
-          ongoingTouches[idx].pageX)),
-          y: Math.round(
-            (touches[i].pageY -
-          ongoingTouches[idx].pageY))};
-        Move(pos);
+        Touch1Event(
+          touches[i],
+          ongoingTouches[idx],
+        );
+      } else {
+        if (Touch2 == idx) {
+          // do stuff move
+        };
       };
       ongoingTouches.splice(idx, 1,
         copyTouch(touches[i]));
@@ -97,17 +103,18 @@ function endtouch(event) {
         touches[i].identifier);
     if (idx >= 0) {
       if (Touch1 == idx) {
-        let pos = {
-          x: Math.round(
-            (touches[i].pageX -
-            ongoingTouches[idx].
-            pageX)),
-          y: Math.round(
-            (touches[i].pageY -
-            ongoingTouches[idx].
-            pageY))};
-        Move(pos);
+        if (Touch1 == idx) {
+          Touch1Event(
+            touches[i],
+            ongoingTouches[idx],
+          );
+        };
         Touch1 = -1;
+      } else {
+        if (Touch2 == idx) {
+          // do stuff end
+          Touch2 = -1;
+        };
       };
       ongoingTouches.splice(idx, 1);
     } else {
@@ -129,6 +136,10 @@ function canceltouch(event) {
       ongoingTouches.splice(idx, 1);
       if (Touch1 == idx) {
         Touch1 = -1;
+      }else {
+        if (Touch2 == idx) {
+          Touch2 = -1;
+        };
       };
     } else {
       console.log('canceltouch - ',
@@ -161,6 +172,17 @@ function HandleMouseEvent(
   /*SetZero({x: (event.clientX),
            y: (event.clientY)},
            caller);*/
+}
+
+function Touch1Event(touch, prevtouch) {
+  let pos = {
+    x: Math.round(
+      (touch.pageX -
+       prevtouch.pageX)),
+    y: Math.round(
+      (touch.pageY -
+       prevtouch.pageY))};
+  Move(pos);
 }
 
 export {startinputlisteners};
