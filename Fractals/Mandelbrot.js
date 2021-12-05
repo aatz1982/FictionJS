@@ -11,8 +11,9 @@ import {cn, cadd, csub, cmul}
 import {TopLeft, Zero, SetZero, height,
   width, xycn, cnxy, SetLsqArea, Plot}
   from '../ComplexPlane.js';
-  
-let escname = 'sqrtabsrxi';
+
+let escname = 'rplusi';
+// let escname = 'sqrtabsrxi';
 // let escname = 'vector';
 
 let lw = new Worker(
@@ -21,9 +22,11 @@ let lw = new Worker(
 
 let log1 = true;
 //if (log1) {
-    
+//  console.log(cpos);
+//};
+
 // General settings
-// to do: implement way to set settings
+// to do: implement menu...
 let Iterations = 60;
 let esclim = 2;
 // Data for requests
@@ -93,9 +96,6 @@ async function GetMandelbrot(
     function TrimRequest() {
       // get current pos for c?
       let cpos = cnxy(r.c);
-      
-      //  console.log(cpos);
-      //};
       // Right
       if ((cpos.x + r.gwidth) > width) {
         r.gwidth = (width - cpos.x);
@@ -167,7 +167,7 @@ async function GetMandLines(request) {
 lw.onmessage = function(event) {
   //console.log(linelength);
   switch (event.data.type) {
-    case 'result':
+    case 'result': // redundant now?
       processresult();
       break;
     case 'msg':

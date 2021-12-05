@@ -4,17 +4,22 @@
 import {cn}
   from './ComplexNumbers.js';
 import {GetMandelbrot}
-from './Fractals/Mandelbrot.js';
+  from './Fractals/Mandelbrot.js';
+import {dbglog, dbgline, dbgdot}
+  from './Debug/Overlay.js';
 
 let TopLeft; // Where in CP is Canvas 0,0
 let Lsq; // Largest (centered) square
 let Zero; // Where is 0 relative TopLeft
 let Dpp; // Distance per-pixel
+let View = {};
+initZoomObject();
 let BackColour = [0, 0, 0, 255];
 let ForeColour = [255, 255, 255, 255];
 let AxisColour = [150, 150, 255, 200];
 let Display = 'Mandelbrot'; // to do...
 let Requests = []; // To queue requests
+let ForceZeroOnPixel = false;
 
 const canvas =
   document.querySelector('.CanvasPlane');
@@ -25,7 +30,7 @@ const ctxc = canvas.getContext('2d');
 const ctxa = axis.getContext('2d');
 
 // CanvasResToMax(); // Can call here
-// doesn't work in IFrame...
+// doesn't work in IFrame...?
 
 const height = axis.height =
   canvas.height = window.innerHeight;
@@ -42,12 +47,30 @@ function xycn(x, y) {
 }
 
 function cnxy(c) {
+  // return the coord from complex number
   let pos = {
     x: Math.round(
       ((c.r - TopLeft.r) / Dpp)),
     y: Math.round(
       ((TopLeft.i - c.i) / Dpp)),
   };
+  return pos;
+}
+
+function distxyxy(p1, p2) {
+  let x = (p2.x - p1.x);
+  let y = (p2.y - p1.y);
+  let d = Math.sqrt(
+    ((x * x) + (y * y))
+  );
+  return d;
+}
+
+function midxyxy(p1, p2) {
+  let pos = {
+    x: (((p2.x - p1.x) / 2) + p1.x),
+    y: (((p2.y - p1.y) / 2) + p1.y),
+  }; // Can this be simplified?
   return pos;
 }
 
@@ -81,11 +104,20 @@ function BlankPlane() {
 
 function SetZero(pos) {
   if (pos == 'centre') {
-    Zero = {x:(Math.round(width / 2)),
-            y:(Math.round(height / 2))};
+    Zero = {
+      x:(Math.round(width / 2)),
+      y:(Math.round(height / 2))
+    };
   } else {
-    Zero = {x:(Math.round(pos.x)),
-            y:(Math.round(pos.y))};
+    if (pos == 'lsq') {
+      pos = cnxy(new cn(0,0));
+    };
+    
+    Zero = {
+      x:(Math.round(pos.x)),
+      y:(Math.round(pos.y))
+    };
+    
     Zero.onscreen = 
       ((Zero.x >= 0) &&
        (Zero.y >= 0) &&
@@ -93,6 +125,8 @@ function SetZero(pos) {
        (Zero.y <= height));
   };
   RepaintAxis();
+  dbglog(Lsq, 'Lsq', 'CP');
+  dbglog(Zero, 'Zero', 'CP');
 }
 
 function MoveZero(rel) {
@@ -104,29 +138,44 @@ function MoveZero(rel) {
 }
 
 function SetLsqArea(
-    upperLeft, lowerRight) {
+ upperLeft, lowerRight) {
   Lsq.upperLeft = upperLeft;
   Lsq.lowerRight = lowerRight;
   SetDpp();
   SetTopLeft();
 }
 
+function SetLsqByWidth(
+ upperLeft, sidelength) {
+  Lsq.upperLeft = upperLeft;
+  Lsq.lowerRight = new cn(
+    (upperLeft.r + sidelength),
+    (upperLeft.i - sidelength)
+  );
+  SetDpp();
+  SetTopLeft();
+}
+
 function SetDpp() {
-  Dpp = ((Lsq.lowerRight.r -
-          Lsq.upperLeft.r) /
-          Lsq.width);
+  Dpp = (
+    (Lsq.lowerRight.r -
+    Lsq.upperLeft.r) /
+    Lsq.sidelength
+  );
+  View.planew = (Dpp * width);
+  View.planeh = (Dpp * height);
 }
 
 function SetupLsq() {
   if (height > width) {
-    Lsq = {width: width};
+    Lsq = {sidelength: width};
     Lsq.offsetY = 
       Math.round((height - width) / 2);
       // Round so on a pixel
     Lsq.offsetX = 0;
   } else {
     if (width >= height) {
-      Lsq = {width: height};
+      Lsq = {sidelength: height};
       Lsq.offsetX = 
         Math.round((width - height) / 2);
       Lsq.offsetY = 0;
@@ -154,14 +203,63 @@ function Move(relpos) {
   MoveLsq(relpos);
   SetTopLeft();
   Reposition(relpos); // Needs to go last
+  SetZero('lsq');
 };
 
-function Zoom(centre, z) {
-  // centre {x, y}; z is Dpp multiplier
+function StretchZoom(centre, pix, apply) {
+  // centre {x, y}; p change in pixels
   // ... do a stretch then req whole cp?
+  if (isNaN(pix) == false) {
+    View.z.totalpix += pix;
+    View.z.pix += pix;
+  };
   
+  let cc = xycn(centre.x, centre.y);
   
+  let x = ((Dpp * pix) / 2);
+  
+  let cat = 'CP Zoom';
+  dbglog(`r${cc.r} i${cc.i}`,'Centre', cat);
+  dbglog(
+    `w: ${View.planew} h: ${View.planeh}`,
+    'In view',
+    'CP Zoom'
+  );
+  dbglog(
+    `: ${x}`,
+    '(Dpp * p)/2',
+    'CP Zoom'
+  );
+  
+  dbglog(
+    `: ${View.z.totalpix}`,
+    'Total',
+    'CP Zoom'
+  );
+  dbglog(
+    `: ${View.z.pix}`,
+    'pix',
+    'CP Zoom'
+  );
+  if (apply == true) {
+    View.z.applycount++
+    View.z.pix = 0;
+  };
+  
+  dbglog(
+    View.z.applycount,
+    'applycount',
+    'CP Zoom'
+  );
 }
+
+function initZoomObject () {
+  View.z = {};
+  View.z.pix = 0;
+  View.z.totalpix = 0;
+  View.z.applycount = 0;
+}
+
 
 function Reposition(r) {
   // r.x: +Right -Left;  r.y: +Down -Up
@@ -507,12 +605,16 @@ export {
   Zero,
   SetZero,
   Move,
+  StretchZoom,
   TopLeft,
   height,
   width,
   SetLsqArea,
   xycn,
   cnxy,
+  distxyxy,
+  midxyxy,
   Plot,
-  Mandelbrot, // to change and not exp
+  Mandelbrot, // to change / not exp?
+  
 };

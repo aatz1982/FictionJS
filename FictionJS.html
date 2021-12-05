@@ -22,11 +22,23 @@
       <p>Add suitable fallback here.</p>
     </canvas>
     
+    <canvas class="CanvasDebug">
+      <p>Add suitable fallback here.</p>
+    </canvas>
+    
+    <canvas class="CanvasInput">
+      <p>Add suitable fallback here.</p>
+    </canvas>
+    
     <style>
       /* Set Z (canvas layer order) */
       canvas {position: absolute;}
-      #CanvasAxis {z-index: 2;} /*near*/
-      #CanvasPlane {z-index: 1;} /*far*/
+      /*far> 1, 2, 3, etc < near*/
+      #CanvasPlane {z-index: 1;}
+      #CanvasAxis {z-index: 2;}
+      #CanvasDebug {z-index: 3;}
+      #CanvasInput {z-index: 4;}
+      
     </style>
     
     <script type="module">
