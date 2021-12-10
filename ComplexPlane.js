@@ -12,7 +12,7 @@ let TopLeft; // Where in CP is Canvas 0,0
 let Lsq; // Largest (centered) square
 let Zero; // Where is 0 relative TopLeft
 let Dpp; // Distance per-pixel
-let View = {};
+let View = {}; View.z = {};
 initZoomObject();
 let BackColour = [0, 0, 0, 255];
 let ForeColour = [255, 255, 255, 255];
@@ -112,17 +112,16 @@ function SetZero(pos) {
     if (pos == 'lsq') {
       pos = cnxy(new cn(0,0));
     };
-    
     Zero = {
       x:(Math.round(pos.x)),
       y:(Math.round(pos.y))
     };
-    
-    Zero.onscreen = 
-      ((Zero.x >= 0) &&
-       (Zero.y >= 0) &&
-       (Zero.x <= width) &&
-       (Zero.y <= height));
+    Zero.onscreen = (
+      (Zero.x >= 0) &&
+      (Zero.y >= 0) &&
+      (Zero.x <= width) &&
+      (Zero.y <= height)
+    );
   };
   RepaintAxis();
   dbglog(Lsq, 'Lsq', 'CP');
@@ -181,6 +180,8 @@ function SetupLsq() {
       Lsq.offsetY = 0;
     };
   };
+  View.halfh = (height / 2);
+  View.halfw = (width / 2)
 }
 
 function MoveLsq(relpos) {
@@ -210,9 +211,15 @@ function StretchZoom(centre, pix, apply) {
   // centre {x, y}; p change in pixels
   // ... do a stretch then req whole cp?
   if (isNaN(pix) == false) {
+    
     View.z.totalpix += pix;
     View.z.pix += pix;
   };
+  
+  View.z.t = (View.halfh);
+  View.z.b = (View.halfw);
+  View.z.l = (0);
+  View.z.r = (0);
   
   let cc = xycn(centre.x, centre.y);
   

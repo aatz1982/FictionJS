@@ -61,17 +61,17 @@ function resetTouchObj() {
   t.touches = []; // last known positions
   t.changes = []; // new positions
   t.moves = 0; // total number move events
+  t.t1 = {};
+  t.t2 = {};
   resetTouch1();
   resetTouch2();
 }
 function resetTouch1 () {
-  t.t1 = {};
   t.t1.id = -1; // -1 is not assigned
   t.t1.mode = 'move';
   t.t1.events = 0;
 }
 function resetTouch2() {
-  t.t2 = {};
   t.t2.id = -1;
   t.t2.mode = 'zoom';
   t.t2.events = 0;
@@ -81,6 +81,13 @@ function swapt1t2() {
   t.t1.id = t.t2.id;
   t.t2.id = swap;
 }
+
+function resetZoom() {
+  z.dist = 0;
+  z.lastdist = 0;
+  z.mid = 0;
+  z.change = 0;
+};
 
 function starttouch(event) {
   event.preventDefault(); // unless mouse
@@ -250,14 +257,6 @@ function copyTouch(
   return { identifier, pageX, pageY };
 }
 
-function HandleMouseEvent(
-    event) {
-      // to do... mouse input
-  /*SetZero({x: (event.clientX),
-           y: (event.clientY)},
-           caller);*/
-}
-
 function Touch1Event(
  touch, prevtouch, ttype) {
   t.t1.events++;
@@ -313,8 +312,6 @@ function Touch2Event(
   z.pos2 = t.t2.pos;
   
   if (ttype == 'start') {
-    t.t2.dif = 0;
-    z.dif2 = 0;
     return;
   };
   
@@ -332,6 +329,7 @@ function Touch2Event(
     CPStretchZoom(true);
   } else {
     CPStretchZoom(false);
+    if (ttype == 'start') {dbglog('!!!')};
   };
 }
 
@@ -357,12 +355,14 @@ function CPStretchZoom(apply) {
   z.mid = midxyxy(
     z.pos1, z.pos2
   );
+  if (z.lastdist == 0) {return};
+  
   z.change = z.dist - z.lastdist;
   
   StretchZoom(z.mid, z.change, apply);
   
   if (apply) {
-    z.lastdist = 0;
+    resetZoom();
   };
   
   // debugging:
@@ -391,6 +391,14 @@ function updatedbg() {
   dbglog(t.t1, 'Touch 1', cat);
   dbglog(t.t2, 'Touch 2', cat);
   dbglog(z, 'z', cat);
+}
+
+function HandleMouseEvent(
+    event) {
+      // to do... mouse input
+  /*SetZero({x: (event.clientX),
+           y: (event.clientY)},
+           caller);*/
 }
 
 export {startinputlisteners};
