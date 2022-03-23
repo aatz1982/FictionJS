@@ -22,11 +22,11 @@
       <p>Add suitable fallback here.</p>
     </canvas>
     
-    <canvas class="CanvasDebug">
+    <canvas class="CanvasOverlay">
       <p>Add suitable fallback here.</p>
     </canvas>
     
-    <canvas class="CanvasInput">
+    <canvas class="CanvasMenu">
       <p>Add suitable fallback here.</p>
     </canvas>
     
@@ -36,8 +36,8 @@
       /*far> 1, 2, 3, etc < near*/
       #CanvasPlane {z-index: 1;}
       #CanvasAxis {z-index: 2;}
-      #CanvasDebug {z-index: 3;}
-      #CanvasInput {z-index: 4;}
+      #CanvasOverlay {z-index: 3;}
+      #CanvasMenu {z-index: 4;}
       
     </style>
     
@@ -45,7 +45,7 @@
     // Module type can import...
       
       import {fiction}
-        from './FictionMain.js';
+        from './Fiction.js';
       
       fiction(); // Start!
       

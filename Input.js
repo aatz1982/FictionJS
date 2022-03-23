@@ -1,13 +1,16 @@
 'use strict';
 // Handles input events
-import {
- Move, StretchZoom, distxyxy, midxyxy}
-  from './ComplexPlane.js';
-import {dbglog, dbgline, dbgdot}
-  from './Debug/Overlay.js';
+import {MenuButton,
+} from './Menu/Button.js';
+import {Menu,
+} from './Menu/Menu.js';
+import {Move, StretchZoom, distxyxy, midxyxy
+} from './ComplexPlane.js';
+import {dbglog, dbgline, dbgdot,
+} from './Debug/Overlay.js';
 
 const canvas =
-  document.querySelector('.CanvasInput');
+  document.querySelector('.CanvasMenu');
 const height =
   canvas.height = window.innerHeight;
 const width =
@@ -53,9 +56,16 @@ function startinputlisteners () {
 
 let t = {}; // touch info
 let z = {}; // zoom info
-
+let Input = {
+  touches: t,
+  reset: resetInput
+};
+function resetInput() {
+  t.t1.mode = 'move';
+  MenuButton.active = true;
+  MenuButton.draw();
+}
 resetTouchObj();
-
 function resetTouchObj() {
   t.count = 0; // number of current touches
   t.touches = []; // last known positions
@@ -63,12 +73,15 @@ function resetTouchObj() {
   t.moves = 0; // total number move events
   t.t1 = {};
   t.t2 = {};
+  t.t1.mode = 'move';
   resetTouch1();
   resetTouch2();
 }
-function resetTouch1 () {
+function resetTouch1() {
   t.t1.id = -1; // -1 is not assigned
-  t.t1.mode = 'move';
+  if (t.t1.mode != 'menu') {
+    t.t1.mode = 'move';
+  };
   t.t1.events = 0;
 }
 function resetTouch2() {
@@ -76,7 +89,7 @@ function resetTouch2() {
   t.t2.mode = 'zoom';
   t.t2.events = 0;
 }
-function swapt1t2() {
+function swapt1t2() { // probably overkill?
   const swap = Number(t.t1.id);
   t.t1.id = t.t2.id;
   t.t2.id = swap;
@@ -103,10 +116,14 @@ function starttouch(event) {
     t.cid = t.changes[i].identifier;
     if (t.t1.id == -1) {
       t.t1.id = t.cid;
+      Touch1Event(
+        t.changes[i],
+        null,
+        'start',
+      );
     } else {
       if (t.t2.id == -1) {
         t.t2.id = t.cid;
-        t.t1.mode = 'zoom';
         Touch2Event(
           t.changes[i],
           null,
@@ -115,7 +132,7 @@ function starttouch(event) {
       };
     };
   };
-  updatedbg();
+  // updatedbg();
 }
 
 function movetouch(event) {
@@ -127,7 +144,7 @@ function movetouch(event) {
   for (let i = 0; i < t.clen; i++) {
     t.cid = t.changes[i].identifier;
     let idx = FindTouchById(t.cid);
-    dbglog(idx, 'last midx', 'Touch Zoom');
+    //dbglog(idx, 'last midx','Touch Zoom');
     if (idx >= 0) {
       if (t.t1.id == t.cid) {
         Touch1Event(
@@ -142,7 +159,6 @@ function movetouch(event) {
             t.touches[idx],
             'move',
           );
-          dbglog(t.changes[i], 'i')
         };
       };
       // Update last known position
@@ -156,7 +172,7 @@ function movetouch(event) {
       );
     };
   };
-  updatedbg();
+  // updatedbg();
 }
 
 
@@ -176,8 +192,7 @@ function endtouch(event) {
           t.touches[idx],
           'end',
         );
-        t.t1.id = -1; // unassign t1
-        t.t1.mode = 'move';
+        resetTouch1(); // unassign t1
         swap = true; // make t2 take t1
       } else {
         if (t.t2.id == t.cid) {
@@ -185,9 +200,8 @@ function endtouch(event) {
             t.changes[i],
             t.touches[idx],
             'end',
-          );
-          t.t2.id = -1; // unassign t2
-          t.t1.mode = 'move';
+          ); // fix t2 zoom end...
+          resetTouch2(); // unassign t2
         };
       };
       t.touches.splice(idx, 1); // remove
@@ -199,7 +213,7 @@ function endtouch(event) {
       );
     };
   };
-  updatedbg();
+  // updatedbg();
 }
 
 function canceltouch(event) {
@@ -218,8 +232,7 @@ function canceltouch(event) {
           t.touches[idx],
           'canc',
         );
-        t.t1.mode = 'move';
-        t.t1.id = -1; // unassign
+        resetTouch1(); // unassign
       } else {
         if (t.t2.id == t.cid) {
           Touch2Event(
@@ -227,8 +240,7 @@ function canceltouch(event) {
             t.touches[idx],
             'canc',
           );
-          t.t2.id = -1; // unassign
-          t.t1.mode = 'move';
+          resetTouch2(); // unassign
         };
       };
       t.touches.splice(idx, 1); // remove
@@ -239,7 +251,7 @@ function canceltouch(event) {
       );
     };
   };
-  updatedbg();
+  // updatedbg();
 }
 
 function FindTouchById(id) {
@@ -260,28 +272,65 @@ function copyTouch(
 function Touch1Event(
  touch, prevtouch, ttype) {
   t.t1.events++;
-  t.t1.dif = {
-    x: Math.round(
-      (touch.pageX -
-      prevtouch.pageX)),
-    y: Math.round(
-      (touch.pageY -
-      prevtouch.pageY))
+  if (ttype != 'start') {
+    t.t1.dif = {
+      x: Math.round(
+        (touch.pageX -
+        prevtouch.pageX)),
+      y: Math.round(
+        (touch.pageY -
+        prevtouch.pageY))
+    };
+    z.dif1 = t.t1.dif;
   };
+  
   t.t1.pos = {
     x: touch.pageX,
     y: touch.pageY,
   };
   
   z.pos1 = t.t1.pos;
-  z.dif1 = t.t1.dif;
+  
+  if ((ttype == 'start') &&
+   (MenuButton.active == true)) {
+    if (touchMenuButton(t.t1.pos)) {
+      t.t1.mode = 'menubutton';
+    };
+  };
   
   switch (t.t1.mode) {
     case 'move':
+      if (ttype == 'start') {return};
       CPMove(t.t1.dif);
       break;
     case 'zoom':
+      if (ttype == 'start') {return};
       t1zoom();
+      break;
+    case 'menu':
+      Menu.x = t.t1.pos.x;
+      Menu.y = t.t1.pos.y;
+      switch (ttype) {
+        case 'start':
+          Menu.touchstart();
+          break;
+        case 'move':
+          Menu.touchmove();
+          break;
+        case 'end':
+          Menu.touchend();
+          break;
+      };
+      break;
+    case 'menubutton':
+      if (ttype == 'end') {
+        if (touchMenuButton(t.t1.pos)) {
+          t.t1.mode = 'menu';
+          MenuButton.press();
+        } else {
+          resetTouch1();
+        };
+      };
       break;
   };
   
@@ -312,6 +361,12 @@ function Touch2Event(
   z.pos2 = t.t2.pos;
   
   if (ttype == 'start') {
+    if (t.t1.mode == 'move') {
+      t.t1.mode = 'zoom';
+    };
+    if (t.t1.mode == 'menu') {
+      t.t2.mode = 'menu';
+    };
     return;
   };
   
@@ -325,16 +380,23 @@ function Touch2Event(
   };
   z.dif2 = t.t2.dif;
   
-  if (ttype == 'end') {
-    CPStretchZoom(true);
-  } else {
-    CPStretchZoom(false);
-    if (ttype == 'start') {dbglog('!!!')};
+  switch (t.t2.mode) {
+    case 'zoom':
+      if (ttype == 'end') {
+        CPStretchZoom(true); // apply
+        t.t1.mode = 'move';
+      } else {
+        CPStretchZoom(false); // update
+      };
+      break;
+    case 'menu' :
+      // to do if/when required
+      break;
   };
 }
 
 function CPStretchZoom(apply) {
-  // quick fix - to improve
+  // quick fix... improve...?
   if (z.pos1 == undefined) {
     z.pos1 = {
       x: t.touches[t.t1.id].pageX,
@@ -364,7 +426,25 @@ function CPStretchZoom(apply) {
   if (apply) {
     resetZoom();
   };
-  
+}
+
+function touchMenuButton(to) {
+  let x = to.x;
+  let y = to.y;
+  let mb = MenuButton;
+  if (
+    ((x > mb.x) &&
+    (x < (mb.x + mb.w)))
+    && 
+    ((y > mb.y) &&
+    (y < (mb.y + mb.h)))
+  ) {
+    return true;
+  };
+  return false;
+}
+
+function updatedbg() {
   // debugging:
   let cat = 'Touch Zoom';
   dbgline(z.pos1, z.pos2, 'diff');
@@ -378,10 +458,6 @@ function CPStretchZoom(apply) {
   txt = `${z.dist} last: ${z.lastdist}`;
   dbglog(txt, 'dist', cat);
   dbglog(z.change, 'change', cat);
-}
-
-function updatedbg() {
-  let cat = 'Touch Zoom';
   let log =
     `${t.count}` +
     ` clen: ${t.clen}` +
@@ -401,4 +477,7 @@ function HandleMouseEvent(
            caller);*/
 }
 
-export {startinputlisteners};
+export {
+  startinputlisteners, 
+  Input
+};

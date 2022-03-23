@@ -1,5 +1,5 @@
-//import {cn, cadd}
-//  from '../../ComplexNumbers.js';
+import {cn, cadd}
+  from '../../ComplexNumbers.js';
 
 let p = 0; // current position in row
 let mpws = []; // MandPoint Workers
@@ -43,8 +43,9 @@ function nextp(w) {
   }; */
   point.wID = w;
   // could/should import cadd?
-  point.c.r = (startr + (p * step.r));
-  point.c.i = (starti + (p * step.i));
+  //point.c.r = (startr + (p * step.r));
+  //point.c.i = (starti + (p * step.i));
+  point.c = cadd(point.c, step);
   point.pos = p;
   /* if (p == (len - 1)) {
     postMessage({
@@ -52,6 +53,7 @@ function nextp(w) {
       msg: start.r});
   }; */
   p++;
+  return point;
 }
 
 for (let i = 0;
@@ -78,14 +80,20 @@ for (let i = 0;
         break;
     };
     function processresult() {
+      let w = pevent.data.wID;
+      let p = pevent.data.pos;
+      let e = pevent.data.Escape;
+      mpws[w].rcount++;
       // Insert result at pos (p)
-      escapes[pevent.data.pos] = 
-        pevent.data.Escape;
+      escapes[p] = e;
       // Check if all rows are sent  
-      if (p == len) {
+      if (p >= len) {
         // If all rows have been sent...
-        mpws[pevent.data.wID].
-          running = false;
+        //dbgl('+', `[${w}] Finished`);
+        //dbgl(mpws[w].rcount, `[${w}] R`);
+        mpws[w].running = false;
+        mpws[w].finishedresolve();
+        /*
         // Check if all workers finished
         let busy = false;
         for (let w = 0; w < cpus; w++) {
@@ -99,11 +107,10 @@ for (let i = 0;
             [escapesbuf]
           );
         };
+        */
       } else {
         // start processing next point
-        nextp(pevent.data.wID);
-        mpws[pevent.data.wID].
-          mpw.postMessage(point);
+        mpws[w].mpw.postMessage(nextp(w));
       };
     };
     function processimporterror() {
@@ -134,13 +141,22 @@ for (let i = 0;
       " (" + event.filename +
       ":" + event.lineno + ")");
   };
-  
-  mpws.push({mpw: mpw, running: false});
-  mpws[i].ready = new Promise(
+  let readyresolve;
+  let readyreject;
+  let ready = new Promise(
     (resolve, reject) => {
-      mpws[i].readyresolve = resolve;
-      mpws[i].readyreject = reject;
+      readyresolve = resolve;
+      readyreject = reject;
     });
+  
+  mpws.push({
+    mpw: mpw,
+    ready: ready,
+    readyresolve: readyresolve,
+    readyreject: readyreject,
+    running: false,
+    rcount: 0,
+  });
 }
 onmessage = function(event) {
   setup(event.data); // Set/Reset worker
@@ -152,15 +168,41 @@ onmessage = function(event) {
     ws = cpus;
   };
   // Start Point Workers
+  let mpwsfinished = []; // promises
   for (let w = 0; w < ws; w++) {
+    let finishedresolve;
+    let finishedreject;
+    let finished = new Promise(
+     (resolve, reject) => {
+      finishedresolve = resolve;
+      finishedreject = reject;
+    });
+    mpwsfinished.push(finished);
+    mpws[w].finishedresolve = finishedresolve;
+    mpws[w].finishedreject = finishedreject;
     // chk worker ready promise fulfilled
+    //dbgl(`${w}`);
     mpws[w].ready.then(() => {
       /* postMessage({
        type: 'msg',
        msg: 'mpw started'}); */
-      nextp(w);
-      mpws[w].mpw.postMessage(point);
+      mpws[w].mpw.postMessage(nextp(w));
+      //dbgl('+', `[${w}] sent:`);
       mpws[w].running = true;
     });
   };
+  Promise.all(mpwsfinished).then(
+    () => {
+      //dbgl(escapes[309], 'esct')
+      postMessage(escapes,[escapesbuf]);
+    }
+  );
+}
+function dbgl(msg, name) {
+  if (name == undefined) {name = 'LW'};
+  postMessage({
+    type: 'dbg',
+    msg: msg,
+    name, name
+  });
 }

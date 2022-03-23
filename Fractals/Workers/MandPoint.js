@@ -1,4 +1,4 @@
-  import { cn, cadd, cmul }
+  import { cn, cadd, csq }
     from '../../ComplexNumbers.js';
   let escname =
     location.search.substring(1);
@@ -9,6 +9,7 @@
   onmessage = function(event) {
     TestPoint(event);
   }
+  let z = new cn(0, 0);
   await import(escpath)
     .then((escmod) => {
       EscapeTest = escmod.default;
@@ -26,9 +27,12 @@
     });
   function TestPoint (event) {
     let esclim = event.data.esclim;
-    let z = new cn(0, 0);
-    let c = new cn(event.data.c.r,
-      event.data.c.i);
+    let c = new cn(
+      event.data.c.r,
+      event.data.c.i
+    );
+    z.r = c.r; // or 0...
+    z.i = c.i;
     let point = {
       msgtype: 'result',
       pos: event.data.pos,
@@ -39,7 +43,8 @@
          i < event.data.Iterations;
          i++) {
       
-      z = cmul(z, z);
+      //z = cmul(z, z);
+      z = csq(z, z);
       z = cadd(z, c);
       
       if (EscapeTest(z, esclim)) {

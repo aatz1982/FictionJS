@@ -1,3 +1,4 @@
+'use strict';
 // A layer to log debugging info to the
 // Canvas. Currently allows text with a
 // name and category, and named lines
@@ -7,18 +8,18 @@
 // add better colours and backgrounds,
 // line breaks...
 const canvas =
-  document.querySelector('.CanvasDebug');
+  document.querySelector('.CanvasOverlay');
 const ctx = canvas.getContext('2d');
 const height =
   canvas.height = window.innerHeight;
 const width = 
   canvas.width = window.innerWidth;
 
-let textcolour = [10, 100, 20, 200];
+let textcolour = [135, 100, 20, 200];
 let textsize = 12;
 let catcolour = [5, 40, 10, 200];
 let catsize = 10;
-let shapecolour = [150, 10, 20, 200];
+let shapecolour = [210, 160, 45, 200];
 let gap = 5;
 let catgap = 4;
 let ident = 10;
@@ -27,7 +28,8 @@ let shapes = [];
 
 ctx.globalCompositeOperation = 'xor';
 
-function dbglog(text, name, category) {
+function dbglog(
+ text, name, category, colour) {
   if (name == undefined) {name = '?'};
   if (category == undefined) {
     category = 'No category'
@@ -38,31 +40,45 @@ function dbglog(text, name, category) {
   if (text == undefined) {
     text = 'undefined'
   };
+  if (colour == undefined) {
+    colour = textcolour;
+  };
   let log = {
     name: name,
-    text: name + ': ' + text,
+    text: text,
     cat: category,
+    colour: colour,
   };
   let updatelog = false;
   for (let i = 0; i < logs.length; i++) {
     if (logs[i].name == name) {
+      if (log.text == '+') {
+        log.text = (logs[i].text + 1);
+      };
       logs[i] = log;
       updatelog = true;
       break;
     };
   };
   if (updatelog == false) {
+    if (log.text == '+') {
+      log.text = 1;
+    };
     logs.push(log);
   };
   updateOverlay();
 }
 
-function dbgline(start, end, name) {
+function dbgline(start, end, name, rgba) {
+  if (rgba == undefined) {
+    rgba = shapecolour;
+  };
   let line = {
     name: name,
     type: 'line',
     start: start,
     end: end,
+    rgba: rgba,
   };
   let updateshape = false;
   for (let i = 0; i < shapes.length; i++) {
@@ -78,14 +94,18 @@ function dbgline(start, end, name) {
   updateOverlay();
 }
 
-function dbgdot(pos, radius, name) {
-  if (radius == undefined) {rad = 2};
+function dbgdot(pos, radius, name, rgba) {
+  if (radius == undefined) {rad = 2;};
+  if (rgba == undefined) {
+    rgba = shapecolour;
+  };
   let dot = {
     name: name,
     type: 'dot',
     x: pos.x,
     y: pos.y,
     radius: radius,
+    rgba: rgba,
   };
   let updateshape = false;
   for (let i = 0; i < shapes.length; i++) {
@@ -97,6 +117,34 @@ function dbgdot(pos, radius, name) {
   };
   if (updateshape == false) {
     shapes.push(dot);
+  };
+  updateOverlay();
+}
+
+function dbgrect(x, y, w, h, name, rgba) {
+  if (name == undefined) {name = 'rect'};
+  if (rgba == undefined) {
+    rgba = shapecolour;
+  };
+  let rect = {
+    name: name,
+    type: 'rect',
+    x: x,
+    y: y,
+    w: w,
+    h: h,
+    rgba: rgba,
+  };
+  let updateshape = false;
+  for (let i = 0; i < shapes.length; i++) {
+    if (shapes[i].name == name) {
+      shapes[i] = rect;
+      updateshape = true;
+      break;
+    };
+  };
+  if (updateshape == false) {
+    shapes.push(rect);
   };
   updateOverlay();
 }
@@ -129,12 +177,12 @@ function updateOverlay() {
     ctx.font = 
       `${textsize}px sanserif`;
     ctx.fillStyle = 
-      `rgba(${textcolour})`;
+      `rgba(${l.colour})`;
     
     // need split long text...
     //console.log(ctx.measureText(l.text));
     ctx.fillText(
-      l.text,
+      (l.name + ': ' + l.text),
       10,
       ((i + 1) * (textsize + gap))  +
       (cats * (catsize + gap)) +
@@ -143,32 +191,40 @@ function updateOverlay() {
   };
   // shapes
   for (let i = 0; i < shapes.length; i++) {
-    if (shapes[i].type == 'line') {
+    let s = shapes[i];
+    if (s.type == 'line') {
       ctx.beginPath();
       ctx.moveTo(
-        shapes[i].start.x,
-        shapes[i].start.y
+        s.start.x,
+        s.start.y
       );
       ctx.lineTo(
-        shapes[i].end.x,
-        shapes[i].end.y
+        s.end.x,
+        s.end.y
       );
       ctx.strokeStyle =
-        `rgba(${shapecolour})`;
+        `rgba(${s.rgba})`;
       ctx.stroke();
     };
-    if (shapes[i].type == 'dot') {
+    if (s.type == 'dot') {
       ctx.beginPath();
       ctx.arc(
-        shapes[i].x,
-        shapes[i].y,
-        shapes[i].radius,
+        s.x,
+        s.y,
+        s.radius,
         0,
-        6.3 // do less lazy math?
+        (Math.PI * 2),
       );
       ctx.fillStyle =
-        `rgba(${shapecolour})`;
+        `rgba(${s.rgba})`;
       ctx.fill();
+    };
+    if (s.type == 'rect') {
+      //ctx.rect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle =
+        `rgba(${s.rgba})`;
+      //ctx.stroke();
+      ctx.strokeRect(s.x, s.y, s.w, s.h);
     };
   };
 }
@@ -177,4 +233,9 @@ function SortByCat(x, y) {
   return x.cat.localeCompare(y.cat);
 }
 
-export {dbglog, dbgline, dbgdot};
+export {
+  dbglog,
+  dbgline,
+  dbgdot,
+  dbgrect,
+};

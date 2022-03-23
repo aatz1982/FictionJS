@@ -7,10 +7,16 @@
 
 import {cn, cadd, csub, cmul}
   from '../ComplexNumbers.js';
+  
+import {ColourArray, FillColourArray}
+  from './Colours/Colour.js';
 
-import {TopLeft, Zero, SetZero, height,
+import {Dpp, TopLeft, Zero, SetZero, height,
   width, xycn, cnxy, SetLsqArea, Plot}
   from '../ComplexPlane.js';
+  
+import {dbglog, dbgline, dbgdot, dbgrect}
+  from '../Debug/Overlay.js';
 
 let escname = 'rplusi';
 // let escname = 'sqrtabsrxi';
@@ -18,29 +24,29 @@ let escname = 'rplusi';
 
 let lw = new Worker(
   ('./Fractals/Workers/MandLine.js?' +
-    escname), { type: 'module' });
-
-let log1 = true;
-//if (log1) {
-//  console.log(cpos);
-//};
+    escname), {type: 'module'}
+);
 
 // General settings
-// to do: implement menu...
-let Iterations = 60;
+// to do: implement a menu...
+let Iterations = 5000;
 let esclim = 2;
 // Data for requests
 let RequestQueue = [];
 let l = {};
 let line;
-let Escapes = [];
+let Escapes;
 let Mandelbrot;
+let M = {
+  request: GetMandelbrot,
+  iterations: Iterations,
+  escapename: escname,
+};
 // Setup colours
-let ColourArray = [];
-FillColourArray(); // to improve later..
+FillColourArray(Iterations);
 
 async function GetMandelbrot(
-  c, Dpp, gwidth, gheight) {
+  c, gDpp, gwidth, gheight) {
   // Returns a Promise that resolves
   // to an Object that contains the
   // image data, the location in the
@@ -49,7 +55,7 @@ async function GetMandelbrot(
     mresultresolve: {},
     mresultreject: {},
     c: new cn(c.r, c.i), 
-    Dpp: Dpp,
+    Dpp: gDpp,
     gwidth: gwidth,
     gheight: gheight,
   };
@@ -63,20 +69,24 @@ async function GetMandelbrot(
   // If it's the only request, start,
   // if not assume already running
   if (RequestQueue.length == 1) {
+    // dbglog('+', 'next', 'mand');
     NextRequest();
   };
   return request.mandelbrot;
   
   async function NextRequest() {
-    // Once started this function
+    // Once started, this function
     // calls itself recursively until
     // there are no requests waiting.
-    // need to add a trim... here?
+    // currently plane only sends one at
+    // a time anyway, but this may change.
     let r = RequestQueue[0];
     TrimRequest();
+    // Check if trim has removed...
     if((r.gwidth > 0) && 
        (r.gheight > 0)) {
       // Send request for processing
+      //dbglog('+', 'mdbsent', 'mand');
       r.mresultresolve(
        await GetMandLines(r));
     } else {
@@ -91,11 +101,21 @@ async function GetMandelbrot(
     RequestQueue.shift();
     // If queue not empty start next req
     if (RequestQueue.length > 0) {
+      /* dbglog(
+        RequestQueue.length, 'rlen', 'mand'
+      ); */
       NextRequest();
     };
     function TrimRequest() {
-      // get current pos for c?
-      let cpos = cnxy(r.c);
+      // dbglog('+', 'trim', 'mand');
+      // dbglog(r.Dpp, 'dpp', 'mand');
+      if (r.Dpp != Dpp) {
+        r.gheight = 0;
+        // dbglog('+', 'tdpp', 'mand');
+        return;
+      };
+      // get current pos for c
+      let cpos = cnxy(r.c, true);
       // Right
       if ((cpos.x + r.gwidth) > width) {
         r.gwidth = (width - cpos.x);
@@ -127,6 +147,7 @@ async function GetMandLines(request) {
   l.y = r.gheight;
   l.c = new cn(r.c.r, r.c.i);
   l.Dpp = r.Dpp
+  Escapes = new Uint16Array(l.x * l.y);
   // switch for rows/columns
   if (l.y < l.x) {
     l.type = 'row';
@@ -173,12 +194,28 @@ lw.onmessage = function(event) {
     case 'msg':
       logmsg();
       break;
+    case 'dbg':
+      dbg();
+      break;
     default:
       processresult();
+      break;
       // console.log(event);
   };
   function processresult() {
-    Escapes.push(event.data);
+    //dbglog('+', 'mdbproc', 'mand');
+    //console.log(event.data);
+    Escapes.set(
+      event.data, l.p * l.len
+    );
+    /*
+    let nb = new Uint16Array(
+      Escapes.length + event.data.length
+    );
+    nb.set(Escapes);
+    nb.set(event.data, Escapes.length);
+    Escapes = nb;
+    */
     // check if completed
     if (l.p == (l.count - 1)) {
       // if completed:
@@ -200,12 +237,20 @@ lw.onmessage = function(event) {
   function logmsg() {
     console.log(event.data.msg)
   };
+  function dbg() {
+    dbglog(
+      event.data.msg,
+      event.data.name,
+      'MANDELBROT'
+    );
+  };
 };
 lw.onerror = function(event) {
   console.log(
     'lw error!', event.message +
     " (" + event.filename +
-    ":" + event.lineno + ")");
+    ":" + event.lineno + ")"
+  );
 };
 
 function processEscapes() {
@@ -213,6 +258,15 @@ function processEscapes() {
   // can probably be avoided by either
   // doing each row as it's returned, or
   // re-writing the below loops...
+  /*
+  dbglog(
+    'mand data length ' +
+    `${Mandelbrot.data.length / 4}` +
+    ' Escapes length ' +
+    `${Escapes.length} ${Escapes[200]}`,
+    'PE', 'MANDELBROT')
+  */
+  //console.log(Escapes);
   function flatten(arrays, TypedArray) {
     let arr = new TypedArray(
       arrays.reduce(
@@ -227,8 +281,7 @@ function processEscapes() {
     );
     return arr;
   };
-  Escapes = flatten(
-    Escapes, Uint16Array);
+  //Escapes = flatten(Escapes, Uint16Array);
   let rgba;
   let i;
   let pos;
@@ -271,39 +324,6 @@ function processEscapes() {
   };
 }
 
-// Colour related functions
-// to do: put in another place...
-function FillColourArray() {
-  for (let i = 0;
-       i <= Iterations; i++) {
-    ColourArray.push(
-      ...WhiteBlueBlackFade(i));
-  };
-}
-
-function BlackWhite (num) {
-  // Return black for even/white for odd
-  if ((num % 2) == 0) {
-    return [0, 0, 0, 255];
-  } else { 
-    return [255, 255, 255, 255];
-  };
-}
-function WhiteToBlackFade(num) {
-  let f = (255 - Math.round(
-    (255 / Iterations) * num));
-  return [f, f, f, 255];
-}
-function WhiteBlueBlackFade(num) {
-  let r = (255 - Math.round(
-    (255 / (Iterations / num)) * num));
-  let g = (255 - Math.round(
-    (255 / (Iterations / 1.5)) * num));
-  let b = (255 - Math.round(
-    (255 / Iterations) * num));
-  return [r, g, b, 255];
-}
-
 function DrawMandelbrot() {
   // Original test, needs revision
   // Set Initial area
@@ -336,6 +356,74 @@ function DrawMandelbrot() {
     };
   };
 }
+let bz;
+function bezM() {
+  const axis  =
+   document.querySelector('.CanvasAxis');
+  const ctx = axis.getContext('2d');
+  let colour = [255,255,200,255];
+  let c = cnxy({r: (1/4), i: 0}) // cusp
+  let r = (c.x - Zero.x);
+  
+  if (bz == undefined) {
+    let z = 51;
+    bz = {
+      a: (28 / z),
+      b: (8 / z),
+      c: (39 / z),
+      d: (63 / z),
+      e: (69 / z),
+      f: (168 / z),
+      g: (198 / z),
+      h: (123 / z),
+    };
+  };
+  
+  // dbglog(c, 'cusp', 'mand');
+  // dbglog(bz, 'bez', 'mand');
+  
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y);
+  // cusp to point with same real (0.25)
+  ctx.bezierCurveTo(
+    (c.x + (r * bz.a)), 
+     (c.y - (r * bz.b)),
+    (c.x + (r * bz.c)),
+     (c.y - (r * bz.d)),
+    c.x, (c.y - (2 * r))
+  );
+  // to point on axis opposite cusp
+  ctx.bezierCurveTo(
+    (c.x - (r * bz.e)),
+    (c.y - (r * bz.f)),
+    (c.x - (r * bz.g)),
+    (c.y - (r * bz.h)),
+    (c.x - (4 * r)), c.y
+  );
+  ctx.bezierCurveTo(
+    (c.x - (r * bz.g)),
+    (c.y + (r * bz.h)),
+    (c.x - (r * bz.e)),
+    (c.y + (r * bz.f)),
+    c.x, (c.y + (2 * r))
+  );
+  ctx.bezierCurveTo(
+    (c.x + (r * bz.c)),
+    (c.y + (r * bz.d)),
+    (c.x + (r * bz.a)),
+    (c.y + (r * bz.b)),
+    c.x, c.y
+  );
+  ctx.closePath();
+  ctx.strokeStyle =
+   `rgba(${colour})`;
+  ctx.stroke();
+  ctx.arc(
+    c.x - (5 * r), c.y, r, 0, 6.3
+  );
+  ctx.stroke();
+}
+
 /*
 async function GetMandRows(request) {
   rowsreq = request.gheight;
@@ -467,4 +555,9 @@ cw.onerror = function(event) {
 };
 */
 
-export {GetMandelbrot,DrawMandelbrot};
+export {
+  GetMandelbrot,
+  Iterations,
+  bezM,
+  M as Mand,
+};
